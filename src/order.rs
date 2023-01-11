@@ -25,7 +25,7 @@ pub enum User {
     Carlos,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Order {
     pub uuid: String,
     pub maker: User,
