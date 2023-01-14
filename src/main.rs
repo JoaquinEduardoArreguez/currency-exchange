@@ -3,7 +3,7 @@ mod order;
 
 use colored::*;
 use order::Order;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
@@ -14,6 +14,23 @@ const ORDER_CREATION_INTERVAL_MS: u64 = 1000;
 fn main() {
     let (order_creator_tx, order_creator_rx) = mpsc::channel();
 
+    let order_creation_handler = spawn_order_creator(order_creator_tx, ORDER_CREATION_INTERVAL_MS);
+    let order_matchmaking_handler = spawn_order_matchmaker(order_creator_rx);
+
+    match order_creation_handler.join() {
+        Ok(ok) => println!("{:?}", ok),
+        Err(error) => println!("{:?}", error),
+    }
+    match order_matchmaking_handler.join() {
+        Ok(ok) => println!("{:?}", ok),
+        Err(error) => println!("{:?}", error),
+    }
+}
+
+fn spawn_order_creator(
+    order_creator_tx: Sender<Order>,
+    creation_pace: u64,
+) -> thread::JoinHandle<()> {
     thread::spawn(move || loop {
         let random_order = order::generate_random();
         match order_creator_tx.send(random_order) {
@@ -21,14 +38,16 @@ fn main() {
             Err(error) => panic!("Problem in send {:?}", error),
         }
 
-        thread::sleep(Duration::from_millis(ORDER_CREATION_INTERVAL_MS));
-    });
+        thread::sleep(Duration::from_millis(creation_pace));
+    })
+}
 
+fn spawn_order_matchmaker(order_creator_rx: Receiver<Order>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut all_orders: Vec<Order> = vec![];
         let mut matching_orders = 0;
         for received in order_creator_rx {
-            println!("Available orders: {:?}", all_orders.len());
+            println!("Pending orders: {:?}", all_orders.len());
             println!("matched orders: {:?}", matching_orders);
             println!("processing: {:?}", received);
 
@@ -70,7 +89,5 @@ fn main() {
 
             println!("===================================");
         }
-    });
-
-    loop {}
+    })
 }
